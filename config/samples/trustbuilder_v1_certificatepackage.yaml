@@ -1,0 +1,7 @@
+apiVersion: trustbuilder.directv.com/v1
+kind: CertificatePackage
+metadata:
+  name: certificatepackage-sample
+spec:
+  # Add fields here
+  foo: bar

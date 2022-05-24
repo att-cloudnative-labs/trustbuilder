@@ -1,0 +1,16 @@
+domain: directv.com
+layout:
+- go.kubebuilder.io/v3
+projectName: trustbuilder
+repo: github.com/att-cloudnative-labs/trustbuilder
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: directv.com
+  group: trustbuilder
+  kind: CertificatePackage
+  path: github.com/att-cloudnative-labs/trustbuilder/api/v1
+  version: v1
+version: "3"

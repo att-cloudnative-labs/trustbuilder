@@ -1,0 +1,34 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - trustbuilder.directv.com
+  resources:
+  - certificatepackages
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - trustbuilder.directv.com
+  resources:
+  - certificatepackages/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - trustbuilder.directv.com
+  resources:
+  - certificatepackages/status
+  verbs:
+  - get
+  - patch
+  - update
