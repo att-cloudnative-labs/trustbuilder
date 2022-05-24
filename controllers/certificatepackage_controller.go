@@ -49,8 +49,8 @@ import (
 const (
 	TrustedCertificateAnnotation     = "trustbuilder.directv.com/trustedcertificate"
 	CurrentCertificateHashAnnotation = "trustbuilder.directv.com/current-certificates-hash"
-	ClusterCAFile    = "/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-	DefaultStorePass = "changeit"
+	ClusterCAFile                    = "/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	DefaultStorePass                 = "changeit"
 )
 
 // CertificatePackageReconciler reconciles a CertificatePackage object
