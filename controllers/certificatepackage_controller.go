@@ -49,7 +49,7 @@ import (
 const (
 	TrustedCertificateAnnotation     = "trustbuilder.directv.com/trustedcertificate"
 	CurrentCertificateHashAnnotation = "trustbuilder.directv.com/current-certificates-hash"
-	ClusterCAFile                    = "/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	ClusterCAFile                    = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 	DefaultStorePass                 = "changeit"
 )
 
@@ -69,7 +69,7 @@ type PemCertificateList []PemCertificate
 //+kubebuilder:rbac:groups=trustbuilder.directv.com,resources=certificatepackages,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=trustbuilder.directv.com,resources=certificatepackages/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=trustbuilder.directv.com,resources=certificatepackages/finalizers,verbs=update
-//+kubebuilder:rbac:groups=core,resources=events,verbs=create;update;patch
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
