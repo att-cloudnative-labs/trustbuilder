@@ -38,8 +38,9 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	scheme          = runtime.NewScheme()
+	setupLog        = ctrl.Log.WithName("setup")
+	clusterCaLogger = ctrl.Log.WithName("clusterca_logger")
 )
 
 func init() {
@@ -80,6 +81,10 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
+
+	// go controllers.ClusterCaToSecret(context.Background())
+
+	go controllers.ClusterCaToSecretExample()
 
 	if err = (&controllers.CertificatePackageReconciler{
 		Client: mgr.GetClient(),
