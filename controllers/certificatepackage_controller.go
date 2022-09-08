@@ -188,7 +188,7 @@ func getPemCertificateListHash(ctx context.Context, cp trustbuilderv1.Certificat
 		certBytes = append(certBytes, pc.content...)
 	}
 	log.V(2).Info(fmt.Sprintf("hashing certificate byte array with length: %d", len(certBytes)))
-	// we add the password secret and key so that changes to that update the has
+	// we add the password secret and key so that changes to that update the hash
 	certBytes = append(certBytes, []byte(cp.Spec.PasswordSecret)...)
 	certBytes = append(certBytes, []byte(cp.Spec.PasswordSecretKey)...)
 	if hash, err := certHasher(certBytes); err != nil {

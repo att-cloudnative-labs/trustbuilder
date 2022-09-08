@@ -82,9 +82,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// go controllers.ClusterCaToSecret(context.Background())
-
-	go controllers.ClusterCaToSecretExample()
+	go controllers.ClusterCaToSecret(mgr.GetClient())
 
 	if err = (&controllers.CertificatePackageReconciler{
 		Client: mgr.GetClient(),
