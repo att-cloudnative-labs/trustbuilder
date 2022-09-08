@@ -15,12 +15,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+const (
+	Namespace  = "global-trust-certificates"
+	SecretName = "cluster-ca-secret"
+)
+
 func ClusterCaToSecret(client client.Client) {
 	log := log.Log.WithName("ClusterCAToSecret")
-	// var api interface {
-	// 	client.Client
-	// }
-	log.Info("Starting Ticker")
 
 	ticker := time.NewTicker(20 * time.Second)
 	quit := make(chan struct{})
@@ -34,17 +35,17 @@ func ClusterCaToSecret(client client.Client) {
 				// check the hash of the secret data with cert.
 				sec, err := getSecret(context.Background(), client, log)
 				if err != nil {
-					log.Error(err, "failed to get secret")
+					log.Error(err, "Failed to get secret")
 				}
 
 				clusterCert, err := getCert(log)
 				if err != nil {
-					log.Error(err, "failed to get cluster CA")
+					log.Error(err, "Failed to get cluster CA")
 				}
 
 				clusterCAPemCertHash, err := getPemCertificateHash(*clusterCert, log)
 				if err != nil {
-					log.Error(err, "failed to get cluster CA Hash")
+					log.Error(err, "Failed to get cluster CA Hash")
 				}
 
 				if clusterCAPemCertHash == getCertificateHashFromSecret(*sec) {
@@ -57,7 +58,7 @@ func ClusterCaToSecret(client client.Client) {
 			} else {
 
 				if err != nil {
-					log.Error(err, "Secret Not Found")
+					log.Info("Secret Not Found, create new secret")
 				}
 
 				err := createSecret(context.Background(), client, log)
@@ -77,7 +78,7 @@ func ClusterCaToSecret(client client.Client) {
 func getSecret(ctx context.Context, client client.Client, log logr.Logger) (*v1.Secret, error) {
 	var secret v1.Secret
 
-	err := client.Get(ctx, types.NamespacedName{Namespace: "default", Name: "cluster-ca-secret"}, &secret)
+	err := client.Get(ctx, types.NamespacedName{Namespace: Namespace, Name: SecretName}, &secret)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get secret: %s", err.Error())
@@ -89,7 +90,7 @@ func getSecret(ctx context.Context, client client.Client, log logr.Logger) (*v1.
 func checkIfSecretPresent(ctx context.Context, client client.Client, log logr.Logger) (bool, error) {
 	var secret v1.Secret
 
-	err := client.Get(ctx, types.NamespacedName{Namespace: "default", Name: "cluster-ca-secret"}, &secret)
+	err := client.Get(ctx, types.NamespacedName{Namespace: Namespace, Name: SecretName}, &secret)
 
 	if err != nil {
 		log.Error(err, "Error while checking for secret")
@@ -103,7 +104,7 @@ func updateSecret(ctx context.Context, client client.Client, log logr.Logger) {
 	log.Info("Update Secret Function")
 
 	var secret v1.Secret
-	sec := client.Get(ctx, types.NamespacedName{Namespace: "default", Name: "cluster-ca-secret"}, &secret)
+	sec := client.Get(ctx, types.NamespacedName{Namespace: Namespace, Name: SecretName}, &secret)
 	if sec != nil {
 		log.Error(sec, "Error while checking for secret")
 	} else {
@@ -126,12 +127,12 @@ func createSecret(ctx context.Context, client client.Client, log logr.Logger) er
 	fmt.Println("Creating New Secret")
 	var secret v1.Secret
 
-	if err := client.Get(ctx, types.NamespacedName{Namespace: "default", Name: "cluster-ca-secret"}, &secret); err != nil {
+	if err := client.Get(ctx, types.NamespacedName{Namespace: Namespace, Name: SecretName}, &secret); err != nil {
 		if errors.IsNotFound(err) {
 			secret = v1.Secret{
 				ObjectMeta: v12.ObjectMeta{
-					Namespace:   "default",
-					Name:        "cluster-ca-secret",
+					Namespace:   Namespace,
+					Name:        SecretName,
 					Annotations: map[string]string{},
 				},
 				Data: map[string][]byte{},
@@ -156,8 +157,7 @@ func createSecret(ctx context.Context, client client.Client, log logr.Logger) er
 
 	secret.Annotations[CurrentCertificateHashAnnotation] = hex.EncodeToString((hash))
 
-	// secret.Data = map[string][]byte{}
-	secret.Data["cluster-ca-secret"] = certBytes
+	secret.Data[SecretName] = certBytes
 	return client.Create(ctx, &secret)
 
 }
@@ -180,10 +180,8 @@ func getPemCertificateHash(cert PemCertificate, log logr.Logger) (string, error)
 	certBytes := make([]byte, 0)
 	certBytes = append(certBytes, cert.content...)
 
-	log.V(2).Info(fmt.Sprintf("hashing certificate byte array with length: %d", len(certBytes)))
-	// // we add the password secret and key so that changes to that update the has
-	// certBytes = append(certBytes, []byte(cp.Spec.PasswordSecret)...)
-	// certBytes = append(certBytes, []byte(cp.Spec.PasswordSecretKey)...)
+	// log.Info(fmt.Sprintf("hashing certificate byte array with length: %d", len(certBytes)))
+
 	if hash, err := certHasher(certBytes); err != nil {
 		return "", fmt.Errorf("failed to hash certificate: %s", err.Error())
 	} else {
