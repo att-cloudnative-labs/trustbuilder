@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	"time"
@@ -38,9 +39,8 @@ import (
 )
 
 var (
-	scheme          = runtime.NewScheme()
-	setupLog        = ctrl.Log.WithName("setup")
-	clusterCaLogger = ctrl.Log.WithName("clusterca_logger")
+	scheme   = runtime.NewScheme()
+	setupLog = ctrl.Log.WithName("setup")
 )
 
 func init() {
@@ -54,11 +54,13 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var namespace string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&namespace, "namespace", "global-trust-certificates", "Namespace where the cluster ca secret will live.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -82,7 +84,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	go controllers.ClusterCaToSecret(mgr.GetClient())
+	quitTicker := make(chan struct{})
+	go controllers.ClusterCaToSecret(mgr.GetClient(), context.Background(), namespace, quitTicker)
 
 	if err = (&controllers.CertificatePackageReconciler{
 		Client: mgr.GetClient(),
@@ -105,6 +108,9 @@ func main() {
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
+		// close(quitTicker)
+		// <-quitTicker
 		os.Exit(1)
 	}
+	// <-quitTicker
 }
