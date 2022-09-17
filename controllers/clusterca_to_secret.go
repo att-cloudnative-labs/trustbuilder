@@ -19,69 +19,66 @@ const (
 	ClusterCaSecretPrefix = "cluster-ca-"
 )
 
-func ClusterCaToSecret(client client.Client, ctx context.Context, namespace string, channel chan struct{}) error {
-	log := log.FromContext(ctx)
-
+func ClusterCaToSecret(client client.Client, namespace string, channel chan bool) {
 	ticker := time.NewTicker(20 * time.Second)
+
 	for {
+		ctx := context.Background()
 		select {
 		case <-ticker.C:
-
-			Namespace, err := createNameSpaceIfNotPresent(ctx, log, client, namespace)
+			err := checkForSecret(ctx, client, namespace)
 			if err != nil {
-				log.Error(fmt.Errorf(err.Error()), "failed create/get namespace: %s", namespace)
-				break
+				log.Log.Error(err, "error when checking for secret")
+				return
 			}
-
-			clusterCert, err := getCert(log)
-			if err != nil {
-				log.Error(fmt.Errorf(err.Error()), "failed to get cluster ca")
-				break
-			}
-
-			clusterCAPemCertHash, err := getPemCertificateHash(*clusterCert, log)
-			if err != nil {
-				log.Error(fmt.Errorf(err.Error()), "failed to get cluster CA Hash")
-				break
-			}
-
-			var secretNameWithHash = ClusterCaSecretPrefix + clusterCAPemCertHash[27:32]
-
-			Secret, isSecretPresent, err := checkIfSecretPresent(ctx, client, log, Namespace.Name, secretNameWithHash)
-			if err != nil {
-				log.Error(fmt.Errorf(err.Error()), "failed to check if secret is present")
-				break
-			}
-
-			if isSecretPresent {
-
-				if clusterCAPemCertHash == getCertificateHashFromSecret(*Secret) {
-					log.Info("Cert and Secret Hash Match, do nothing...")
-					break
-				} else {
-					log.Info("Cert and Secret Hash do not match, update existing")
-					err := createSecret(ctx, client, log, Namespace.Name, secretNameWithHash)
-					if err != nil {
-						log.Error(fmt.Errorf(err.Error()), "failed to update secret")
-						break
-					}
-				}
-
-			} else {
-
-				err = createSecret(ctx, client, log, Namespace.Name, secretNameWithHash)
-				if err != nil {
-					log.Error(fmt.Errorf(err.Error()), "failed to create secret")
-					break
-				}
-			}
-
 		case <-channel:
-			log.Info("Channel is closing and ticker stopped")
 			ticker.Stop()
-			return fmt.Errorf("channel closed")
 		}
 	}
+}
+
+func checkForSecret(ctx context.Context, client client.Client, namespace string) error {
+	log := log.FromContext(ctx)
+
+	Namespace, err := createNameSpaceIfNotPresent(ctx, log, client, namespace)
+	if err != nil {
+		return fmt.Errorf("failed create/get namespace: %s", err.Error())
+	}
+
+	clusterCert, err := getCert(log)
+	if err != nil {
+		return fmt.Errorf("failed to get cluster ca: %s", err.Error())
+	}
+
+	clusterCAPemCertHash, err := getPemCertificateHash(*clusterCert, log)
+	if err != nil {
+		return fmt.Errorf("failed to get cluster CA Hash: %s", err.Error())
+	}
+
+	secretNameWithHash := fmt.Sprintf("%s%s", ClusterCaSecretPrefix, clusterCAPemCertHash[27:32])
+
+	Secret, isSecretPresent, err := checkIfSecretPresent(ctx, client, log, Namespace.Name, secretNameWithHash)
+	if err != nil {
+		return fmt.Errorf("failed to check if secret is present: %s", err.Error())
+	}
+
+	if isSecretPresent {
+		if clusterCAPemCertHash == getCertificateHashFromSecret(*Secret) {
+			return nil
+		} else {
+			log.Info("Cert and Secret Hash do not match, create new version")
+			err := createSecret(ctx, client, log, Namespace.Name, secretNameWithHash)
+			if err != nil {
+				return fmt.Errorf("failed to create new version of secret: %s", err.Error())
+			}
+		}
+	} else {
+		err = createSecret(ctx, client, log, Namespace.Name, secretNameWithHash)
+		if err != nil {
+			return fmt.Errorf("failed to create secret: %s", err.Error())
+		}
+	}
+	return nil
 }
 
 func createNameSpaceIfNotPresent(ctx context.Context, log logr.Logger, client client.Client, namespace string) (*v1.Namespace, error) {
@@ -119,26 +116,7 @@ func checkIfSecretPresent(ctx context.Context, client client.Client, log logr.Lo
 	}
 }
 
-// func createNewSecretVersion(ctx context.Context, client client.Client, log logr.Logger, namespace string, secretName string) error {
-// 	log.Info("Create a new secret version")
-
-// 	var secret v1.Secret
-// 	err := client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: secretName}, &secret)
-// 	if err != nil {
-// 		return fmt.Errorf("error getting secret: %s/%s", secretName, err.Error())
-// 	} else {
-// 		createSecret := createSecret(ctx, client, log, namespace, secretName)
-// 		if createSecret != nil {
-// 			return fmt.Errorf("failed to create secret while trying to update: %s/%s", secretName, err.Error())
-// 		}
-
-// 	}
-// 	return err
-// }
-
 func createSecret(ctx context.Context, client client.Client, log logr.Logger, namespace string, secretName string) error {
-
-	log.Info("Creating New Secret")
 	var secret v1.Secret
 
 	if err := client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: secretName}, &secret); err != nil {
@@ -163,7 +141,10 @@ func createSecret(ctx context.Context, client client.Client, log logr.Logger, na
 	}
 
 	certBytes := make([]byte, 0)
+	certBytes = append(certBytes, []byte(clusterCert.alias)...)
+	certBytes = append(certBytes, []byte("\n")...)
 	certBytes = append(certBytes, clusterCert.content...)
+	certBytes = append(certBytes, []byte("\n")...)
 
 	hash, err := certHasher(certBytes)
 	if err != nil {
@@ -184,8 +165,6 @@ func getCert(log logr.Logger) (*PemCertificate, error) {
 
 	if err != nil {
 		return &PemCertificate{}, fmt.Errorf("failed to get cluster ca certificate: %s", err.Error())
-	} else if pc != nil {
-		log.Info("The Cluster CA file is present")
 	}
 	return pc, nil
 }
@@ -193,7 +172,10 @@ func getCert(log logr.Logger) (*PemCertificate, error) {
 func getPemCertificateHash(cert PemCertificate, log logr.Logger) (string, error) {
 
 	certBytes := make([]byte, 0)
+	certBytes = append(certBytes, []byte(cert.alias)...)
+	certBytes = append(certBytes, []byte("\n")...)
 	certBytes = append(certBytes, cert.content...)
+	certBytes = append(certBytes, []byte("\n")...)
 
 	// log.Info(fmt.Sprintf("hashing certificate byte array with length: %d", len(certBytes)))
 
