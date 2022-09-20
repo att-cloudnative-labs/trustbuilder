@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"flag"
 	"os"
 	"time"
@@ -84,8 +83,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	quitTicker := make(chan struct{})
-	go controllers.ClusterCaToSecret(mgr.GetClient(), context.Background(), namespace, quitTicker)
+	quitTicker := make(chan bool)
+	go controllers.ClusterCaToSecret(mgr.GetClient(), namespace, quitTicker)
 
 	if err = (&controllers.CertificatePackageReconciler{
 		Client: mgr.GetClient(),
@@ -108,9 +107,7 @@ func main() {
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
-		// close(quitTicker)
-		// <-quitTicker
+		quitTicker <- true
 		os.Exit(1)
 	}
-	// <-quitTicker
 }
