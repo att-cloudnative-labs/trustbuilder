@@ -24,19 +24,20 @@ import (
 	"encoding/pem"
 	oserrors "errors"
 	"fmt"
-	"github.com/go-logr/logr"
-	"github.com/pavel-v-chernykh/keystore-go/v4"
 	"io/ioutil"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-logr/logr"
+	"github.com/pavel-v-chernykh/keystore-go/v4"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -407,10 +408,15 @@ func (r *CertificatePackageReconciler) applyCertBytesToSecret(ctx context.Contex
 			return fmt.Errorf("failed to get destination secret: %s", err.Error())
 		}
 	}
-	if targetSecret.Annotations == nil {
+
+	if cp.Annotations != nil {
+		targetSecret.Annotations = cp.Spec.Annotations
+	} else if targetSecret.Annotations == nil {
 		targetSecret.Annotations = map[string]string{}
 	}
+
 	targetSecret.Annotations[CurrentCertificateHashAnnotation] = certHash
+
 	if targetSecret.Data == nil {
 		targetSecret.Data = map[string][]byte{}
 	}

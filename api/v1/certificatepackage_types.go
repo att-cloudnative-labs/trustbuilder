@@ -38,6 +38,7 @@ type CertificatePackageSpec struct {
 	AddClusterCA      string               `json:"addClusterCA,omitempty"`
 	PasswordSecret    string               `json:"passwordSecret,omitempty"`
 	PasswordSecretKey string               `json:"passwordSecretKey,omitempty"`
+	Annotations       map[string]string    `json:"annotations,omitempty"`
 }
 
 // CertificatePackageStatus defines the observed state of CertificatePackage

@@ -39,6 +39,11 @@ spec:
             properties:
               addClusterCA:
                 type: string
+              annotations:
+                description: Custom annotations map that will be added to the output object
+                additionalProperties:
+                  type: string
+                type: object
               key:
                 type: string
               packageType:
