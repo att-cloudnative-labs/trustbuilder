@@ -24,19 +24,20 @@ import (
 	"encoding/pem"
 	oserrors "errors"
 	"fmt"
-	"github.com/go-logr/logr"
-	"github.com/pavel-v-chernykh/keystore-go/v4"
 	"io/ioutil"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-logr/logr"
+	"github.com/pavel-v-chernykh/keystore-go/v4"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -141,11 +142,12 @@ func (r *CertificatePackageReconciler) getCertificateSecretsAndConfigMaps(ctx co
 
 func (r *CertificatePackageReconciler) getPemCertificateList(ctx context.Context, cp trustbuilderv1.CertificatePackage, log logr.Logger) (PemCertificateList, error) {
 	pcl := make([]PemCertificate, 0)
-	if pc, err := getClusterCAPemCertificate(log); err != nil {
-		return PemCertificateList{}, fmt.Errorf("failed to get cluster ca certificate: %s", err.Error())
-	} else if pc != nil {
-		pcl = append(pcl, *pc)
+
+	clusterCaSecretList, err := r.getClusterCaSecretList(ctx, log)
+	if err != nil {
+		return PemCertificateList{}, fmt.Errorf("failed to get cluster ca secrets: %s", err.Error())
 	}
+
 	secList, cmList, err := r.getCertificateSecretsAndConfigMaps(ctx, cp, log)
 	if err != nil {
 		return PemCertificateList{}, fmt.Errorf("failed to get secrets and configmaps: %s", err.Error())
@@ -157,6 +159,9 @@ func (r *CertificatePackageReconciler) getPemCertificateList(ctx context.Context
 	})
 	sort.Slice(secList.Items, func(i, j int) bool {
 		return secList.Items[i].Name < secList.Items[j].Name
+	})
+	sort.Slice(clusterCaSecretList.Items, func(i, j int) bool {
+		return clusterCaSecretList.Items[i].Name < clusterCaSecretList.Items[j].Name
 	})
 
 	for _, sec := range secList.Items {
@@ -172,6 +177,14 @@ func (r *CertificatePackageReconciler) getPemCertificateList(ctx context.Context
 			return PemCertificateList{}, fmt.Errorf("failed to get pem certificates from configmap: %s", err.Error())
 		} else {
 			pcl = append(pcl, cmCerts...)
+		}
+	}
+
+	for _, casCert := range clusterCaSecretList.Items {
+		if clusterCaSecCerts, err := getPemCertificatesFromSecret(casCert, log); err != nil {
+			return PemCertificateList{}, fmt.Errorf("failed to get pem certificates from configmap: %s", err.Error())
+		} else {
+			pcl = append(pcl, clusterCaSecCerts...)
 		}
 	}
 
@@ -296,6 +309,25 @@ func getClusterCAPemCertificate(log logr.Logger) (*PemCertificate, error) {
 	}
 	certData = append(certData, content...)
 	return &PemCertificate{alias: "cluster-ca", content: certData}, nil
+}
+
+func (r *CertificatePackageReconciler) getClusterCaSecretList(ctx context.Context, log logr.Logger) (v1.SecretList, error) {
+	var secList v1.SecretList
+
+	labelSelector := v12.LabelSelector{MatchLabels: map[string]string{"trustbuilder-global": "cluster-ca"}}
+
+	sel, err := v12.LabelSelectorAsSelector(&labelSelector)
+	if err != nil {
+		log.Error(err, "error converting LabelSelector to Selector", "namespace", "global-trust-certificates", "name", "cluster-ca")
+		return v1.SecretList{}, fmt.Errorf("error converting LabelSelector to Selector: %s", err.Error())
+	}
+
+	if err := r.List(ctx, &secList, client.InNamespace("global-trust-certificates"), client.MatchingLabelsSelector{Selector: sel}); err != nil {
+		log.Info("error retrieving secrets for certificatePackage", "namespace", "global-trust-certificates", "name", "cluster-ca")
+		return v1.SecretList{}, err
+	}
+
+	return secList, nil
 }
 
 func getPemCertificatesFromConfigMap(cm v1.ConfigMap, log logr.Logger) (PemCertificateList, error) {

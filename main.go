@@ -53,11 +53,13 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var namespace string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&namespace, "namespace", "global-trust-certificates", "Namespace where the cluster ca secret will live.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -81,6 +83,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	quitTicker := make(chan bool)
+	go controllers.ClusterCaToSecret(mgr.GetClient(), namespace, quitTicker)
+
 	if err = (&controllers.CertificatePackageReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
@@ -102,6 +107,7 @@ func main() {
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
+		quitTicker <- true
 		os.Exit(1)
 	}
 }
