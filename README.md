@@ -50,6 +50,7 @@ passwordSecret: "secret containing the password to sign JKS keystore with - requ
 passwordSecretKey: "key within the passwordSecret containing the password data - required only for JKS type only"
 addClusterCA: "(true/false) include the cluster CA in the certificate store. Default: false"
 selector: "label selector that selects which secrets contain the source trusted certificates"
+annotations: "label selector that selects which secrets contain the source trusted certificates"
 ```
 
 ### Source Trusted Certificates

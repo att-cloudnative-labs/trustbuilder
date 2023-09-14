@@ -439,10 +439,15 @@ func (r *CertificatePackageReconciler) applyCertBytesToSecret(ctx context.Contex
 			return fmt.Errorf("failed to get destination secret: %s", err.Error())
 		}
 	}
-	if targetSecret.Annotations == nil {
+
+	if cp.Annotations != nil {
+		targetSecret.Annotations = cp.Spec.Annotations
+	} else if targetSecret.Annotations == nil {
 		targetSecret.Annotations = map[string]string{}
 	}
+
 	targetSecret.Annotations[CurrentCertificateHashAnnotation] = certHash
+
 	if targetSecret.Data == nil {
 		targetSecret.Data = map[string][]byte{}
 	}
